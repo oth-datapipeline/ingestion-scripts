@@ -4,10 +4,10 @@ class RssFeed(Record, serializer='json'):
     feed_source: str
     title: str
     link: str
-    comments: str
-    authors: list
-    published_parsed: list
-    tags: list
-    summary: str
-    content: list
-    source: dict
+    summary: str = None
+    published_parsed: list = None
+    authors: list = None
+    tags: list = None
+    comments: str = None
+    content: list = None
+    source: dict = None
