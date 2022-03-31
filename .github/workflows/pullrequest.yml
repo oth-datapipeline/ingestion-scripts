@@ -20,11 +20,11 @@ jobs:
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
         with:
-          args: >
-            -Dsonar.organization=${{ github.repository_owner }}
-            -Dsonar.projectKey=echo ${{ github.repository_owner }} | sed 's#/#_#'
+        args: >
+            -Dsonar.organization=oth-datapipeline
+            -Dsonar.projectKey=oth-datapipeline_ingestion-scripts
             -Dsonar.sources=.
-            -Dsonar.qualitygate.wait=trueA
+            -Dsonar.qualitygate.wait=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
