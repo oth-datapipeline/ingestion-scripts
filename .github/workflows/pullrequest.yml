@@ -1,6 +1,7 @@
 name: Sonar Scan & Quality Checks on PR
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
@@ -21,9 +22,9 @@ jobs:
         with:
           args: >
             -Dsonar.organization=${{ github.repository_owner }}
-            -Dsonar.projectPath=${{ github.repository_owner }}_${{ github.repository }}
+            -Dsonar.projectKey=echo ${{ github.repository_owner }} | sed 's#/#_#'
             -Dsonar.sources=.
-            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.wait=trueA
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
