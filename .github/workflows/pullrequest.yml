@@ -20,6 +20,9 @@ jobs:
         uses: SonarSource/sonarcloud-github-action@master
         with:
           args: >
+            -Dsonar.organization=${{ github.repository_owner }}
+            -Dsonar.projectPath=${{ github.repository_owner }}_${{ github.repository }}
+            -Dsonar.sources=.
             -Dsonar.qualitygate.wait=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
