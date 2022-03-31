@@ -1,7 +1,7 @@
 name: Sonar Scan & Quality Checks on PR
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:   # Allows for manually triggering pipeline
   push:
     branches:
       - master
@@ -20,7 +20,7 @@ jobs:
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
         with:
-        args: >
+          args: >
             -Dsonar.organization=oth-datapipeline
             -Dsonar.projectKey=oth-datapipeline_ingestion-scripts
             -Dsonar.sources=.
