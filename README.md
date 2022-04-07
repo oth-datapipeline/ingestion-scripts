@@ -9,7 +9,7 @@ After cloning this repository, create a venv in the folder of the repository usi
 
 To activate the venv, enter the following command:
 
-`venv\Scripts\activate` if your on Windows
+`venv\Scripts\activate` if you're on Windows
 
 `source venv/bin/activate` on Unix
 
