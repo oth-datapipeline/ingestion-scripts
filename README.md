@@ -32,7 +32,7 @@ Navigate to the src-Folder and type:
 First, you have to build an image:
 `docker build -t ingestion_image --no-cache .`
 
-Then, run the image, and pass various variables to the container:
-`docker run --network=docker_kafka --name=pipeline -e MONGO_INITDB_ROOT_USERNAME=<username> -e MONGO_INITDB_ROOT_PASSWORD=<password> -e BROKER_HOST="broker:29092" -e MONGO_HOST="mongo" ingestion_image`
+Then make your that the docker stack from [oth-pipeline/infrastructure](https://github.com/oth-datapipeline/infrastructure) is running.
 
-That's it, your worker is now running.
+Finally, run the `ingestion_image` you previously build, and pass various variables to the container:
+`docker run --network=docker_kafka --name=pipeline -e MONGO_INITDB_ROOT_USERNAME=<username> -e MONGO_INITDB_ROOT_PASSWORD=<password> -e BROKER_HOST="broker:29092" -e MONGO_HOST="mongo" ingestion_image`
