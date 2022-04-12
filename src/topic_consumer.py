@@ -10,14 +10,24 @@ from records import RssFeed
 from pymongo import MongoClient
 from bs4 import BeautifulSoup
 from newspaper import Article
+from newspaper import Config
 import nltk
 nltk.download('punkt')
+
+user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:99.0) Gecko/20100101 Firefox/99.0'
+
+config = Config()
+config.browser_user_agent = user_agent
+config.request_timeout = 5
 
 app = faust.App('topic_consumer', broker='kafka://localhost:9092')
 rss = app.topic('rss', value_type=RssFeed)
 # rss_stream = app.stream(rss)
 
 rss_filtered = app.topic('rss_filtered', value_type=RssFeed)
+rss_with_content = app.topic('rss_with_content', value_type=RssFeed)
+rss_without_content = app.topic('rss_without_content', value_type=RssFeed)
+full_rss = app.topic("full_rss", value_type=RssFeed)
 
 user = os.environ["MONGO_INITDB_ROOT_USERNAME"]
 pw = os.environ["MONGO_INITDB_ROOT_PASSWORD"]
@@ -27,70 +37,109 @@ collection = db['rss.articles']
 collection.create_index([('link', pymongo.TEXT)], name='link_index', unique=True)
 links = list(map(lambda link: link['link'], list(collection.find({}, {'link':1, '_id':0}))))
 
-
-@app.timer(interval=36000.0)
-async def fetch_links():
-    links = list(map(lambda link: link['link'], list(collection.find({}, {'link':1, '_id':0}))))
     
 @app.agent(rss) 
 async def remove_old_articles(feeds):
     async for feed in feeds:
         if not feed.link in links:
+            print("1")
             await rss_filtered.send(value=feed)
+            return
 
-async def fill_content(feed):
-    try:   
-        link = feed.link
-        article = Article(link)
-        article.download()
-        article.parse()
-        feed.content = article.text
-        if (not feed.content):
+@app.agent(rss_filtered, concurrency=4)
+async def fetch_content(feeds):
+    async for feed in feeds:
+        try:
+            print("2")   
+            link = feed.link
+            article = Article(link, config=config)
+            article.download()
+            article.parse()
+            feed.content = article.text
+            if (not feed.content):
+                # send to rss_wo_content
+                print("3")
+                feed.content = article.html
+                await rss_without_content.send(value=feed)
+                return
+            article.nlp()
+            feed.tags = article.keywords
+            feed.summary = article.summary
+            # send to rss_w_content
+            print("4")
+            await rss_with_content.send(value=feed)
+
+        except newspaper.article.ArticleException as err:
+                logging.warn(f"Could not fetch content from {link}")
+        
+
+@app.agent(rss_without_content)
+async def fill_content(feeds):
+    async for feed in feeds:
+        try:   
+            print("5")
+            # send to rss_wo_content
             soup = BeautifulSoup(feed.content, features="html.parser")
             # remove all script and style elements
             for script in soup(["script", "style", "a", "img"]):
                 script.extract()
             text = soup.get_text()
             feed.content = text
+            article = Article("")
             article.download(input_html=text)
-        article.nlp()
-        feed.tags = article.keywords
-        feed.summary = article.summary
-    except newspaper.article.ArticleException as err:
-            logging.warn(f"Could not fetch content from {link}")
-    return feed    
-
-async def fill_summary_if_missing(feed):
-    try:   
-        link = feed.link
-        article = Article("")
-        # clean existing summary from tags
-        if (feed.summary):
-            soup = BeautifulSoup(feed.summary, features="html.parser")
-            
-            # remove all script and style elements
-            for script in soup(["script", "style", "a", "img"]):
-                script.extract()
-
-            text = soup.get_text()
-            feed.summary = text
-        # summarize article if no summary exists
-        else: 
-            article.download(input_html=feed.content)
-            article.parse()
             article.nlp()
+            feed.tags = article.keywords
             feed.summary = article.summary
-    except Exception as err:
-            logging.warn(f"Could not summarize article: {link}")
-            traceback.print_exc()
-    return feed  
+            # send to rss_w_content
+            await rss_with_content.send(value=feed)
 
-s = app.stream(rss_filtered, processors = [fill_content, fill_summary_if_missing])
+        except newspaper.article.ArticleException as err:
+                logging.warn(f"Could not fill content")
+        return
 
-@app.task       
-async def write_feed_to_mongo():
-    async for feed in s:
+@app.agent(rss_with_content)
+async def fill_summary_if_missing(feeds):
+    async for feed in feeds:
+        try:   
+            print("6")
+            link = feed.link
+            article = Article("")
+            # clean existing summary from tags
+            if (feed.summary):
+                soup = BeautifulSoup(feed.summary, features="html.parser")
+                
+                # remove all script and style elements
+                for script in soup(["script", "style", "a", "img"]):
+                    script.extract()
+
+                text = soup.get_text()
+                feed.summary = text
+            # summarize article if no summary exists
+            else: 
+                article.download(input_html=feed.content)
+                article.parse()
+                article.nlp()
+                feed.summary = article.summary
+        except Exception as err:
+                logging.warn(f"Could not summarize article: {link}")
+                traceback.print_exc()
+        await full_rss.send(value=feed)
+
+
+@app.agent(full_rss, concurrency=4)
+async def write_feed_to_mongo(feeds):
+    async for feed in feeds:
         try:
-            collection.insert_one(feed.asdict())
+            print("7")
+            with client.start_session() as session:
+                with session.start_transaction():
+                    collection.insert_one(feed.asdict())
+            print("8")
         except Exception:
             continue
+
+
+
+# @app.timer(interval=36000.0)
+# def fetch_links():
+#     links = list(map(lambda link: link['link'], list(collection.find({}, {'link':1, '_id':0}))))
