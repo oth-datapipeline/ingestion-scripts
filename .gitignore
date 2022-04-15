@@ -1,5 +1,6 @@
 # Dotfiles that don't belong in the repo
 .DS_Store
+.vscode
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
