@@ -32,12 +32,13 @@ full_rss = app.topic("full_rss", value_type=RssFeed)
 user = os.environ["MONGO_INITDB_ROOT_USERNAME"]
 pw = os.environ["MONGO_INITDB_ROOT_PASSWORD"]
 client = MongoClient("localhost", 27017, username=user, password=pw, serverSelectionTimeoutMS=5000, socketTimeoutMS=5000, waitQueueTimeoutMS=5000)
+
 db = client['data']
 collection = db['rss.articles']
 collection.create_index([('link', pymongo.ASCENDING)], name='link_index', unique=True)
 links = list(map(lambda link: link['link'], list(collection.find({}, {'link':1, '_id':0}))))
 
-    
+
 @app.agent(rss) 
 async def remove_old_articles(feeds):
     async for feed in feeds:
@@ -131,3 +132,4 @@ async def write_feed_to_mongo(feeds):
 @app.timer(interval=36000.0)
 def fetch_links():
     links = list(map(lambda link: link['link'], list(collection.find({}, {'link':1, '_id':0}))))
+
