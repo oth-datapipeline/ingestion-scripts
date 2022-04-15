@@ -22,7 +22,6 @@ config.request_timeout = 5
 
 app = faust.App('topic_consumer', broker='kafka://localhost:9092')
 rss = app.topic('rss', value_type=RssFeed)
-# rss_stream = app.stream(rss)
 
 rss_filtered = app.topic('rss_filtered', value_type=RssFeed)
 rss_with_content = app.topic('rss_with_content', value_type=RssFeed)
@@ -42,7 +41,7 @@ links = list(map(lambda link: link['link'], list(collection.find({}, {'link':1, 
 @app.agent(rss) 
 async def remove_old_articles(feeds):
     async for feed in feeds:
-        if not feed.link in links:
+        if feed.link not in links:
             await rss_filtered.send(value=feed)
 
 @app.agent(rss_filtered, concurrency=4)
@@ -63,7 +62,7 @@ async def fetch_content(feeds):
                 feed.summary = article.summary
                 await rss_with_content.send(value=feed)
 
-        except newspaper.article.ArticleException as err:
+        except newspaper.article.ArticleException:
                 logging.warn(f"Could not fetch content from {link}")
         
 
@@ -86,7 +85,7 @@ async def fill_content(feeds):
             # send to rss_w_content
             await rss_with_content.send(value=feed)
 
-        except newspaper.article.ArticleException as err:
+        except newspaper.article.ArticleException:
                 logging.warn(f"Could not fill content")
 
 @app.agent(rss_with_content)
@@ -111,7 +110,7 @@ async def fill_summary_if_missing(feeds):
                 article.parse()
                 article.nlp()
                 feed.summary = article.summary
-        except Exception as err:
+        except Exception:
                 logging.warn(f"Could not summarize article: {link}")
                 traceback.print_exc()
         await full_rss.send(value=feed)
@@ -123,7 +122,7 @@ async def write_feed_to_mongo(feeds):
         async for feed in feeds:    
             try:
                 collection.insert_one(feed.asdict())
-            except Exception as err:
+            except Exception:
                 traceback.print_exc()
  
 
