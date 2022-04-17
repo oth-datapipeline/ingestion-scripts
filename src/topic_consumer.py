@@ -48,13 +48,14 @@ collection = db['rss.articles']
 collection.create_index([('link', pymongo.ASCENDING)], name='link_index', unique=True)
 
 
-@app.timer(interval=36000.0)
 def fetch_links():
     return list(map(lambda link: link['link'], list(collection.find({}, {'link': 1, '_id': 0}))))
 
-
 links = fetch_links()
 
+@app.timer(interval=36000.0)
+def set_links():
+	links = fetch_links()
 
 @app.agent(rss)
 async def remove_old_articles(feeds):
