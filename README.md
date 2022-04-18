@@ -3,10 +3,12 @@ Repository for managing ingestion scripts
 
 ## Getting started
 
+
 After cloning this repository, there are two ways to run it: via Docker or directly on your machine.
 
 ### Running directly on host machine
 Create a venv in the folder of the repository using:
+
 
 `python -m venv venv`
 
@@ -20,7 +22,9 @@ Afterwards, install all requirements:
 
 `pip install -r requirements.txt`
 
+
 #### Starting a Faust Worker
+
 
 Navigate to the src-Folder and type:
 

@@ -1,10 +1,11 @@
 from faust import Record
 
+
 class RssFeed(Record, serializer='json'):
     feed_source: str
     title: str
     link: str
-    published:str = None
+    published: str = None
     author: str = None
     summary: str = None
     published_parsed: list = None
