@@ -1,26 +1,30 @@
+import datetime
 import faust
-import os
-import logging
 import newspaper
-import traceback
+import os
 import pymongo
+import traceback
 
 from records import RssFeed
 from pymongo import MongoClient
 from bs4 import BeautifulSoup
 from newspaper import Article
 from newspaper import Config
+from ingestion_logger import get_ingestion_logger
+logger = get_ingestion_logger("rss")
+
 import nltk
 nltk.download('punkt')
 
 user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:99.0) Gecko/20100101 Firefox/99.0'
 
-config = Config()
+# Newspaper3k Config
+config = newspaper.Config()
 config.browser_user_agent = user_agent
 config.request_timeout = 5
 
 # define faust app
-broker_host = os.environ["BROKER_HOST"] if os.environ["BROKER_HOST"] else "localhost:9092"
+broker_host = os.environ["BROKER_HOST"] if "BROKER_HOST" in os.environ.keys() else "localhost:9092"
 app = faust.App('topic_consumer', broker=f'kafka://{broker_host}')
 
 # define topics
@@ -33,7 +37,7 @@ full_rss = app.topic("full_rss", value_type=RssFeed)
 # define mongo db client
 user = os.environ["MONGO_INITDB_ROOT_USERNAME"]
 pw = os.environ["MONGO_INITDB_ROOT_PASSWORD"]
-mongo_host = os.environ["MONGO_HOST"] if os.environ["MONGO_HOST"] else "localhost"
+mongo_host = os.environ["MONGO_HOST"] if "MONGO_HOST" in os.environ else "localhost"
 client = MongoClient(
     mongo_host,
     27017,
@@ -62,6 +66,8 @@ async def remove_old_articles(feeds):
     async for feed in feeds:
         if feed.link not in links:
             await rss_filtered.send(value=feed)
+        else: 
+            logger.info(f"Discared Article {feed.link} as Duplicate")
 
 
 @app.agent(rss_filtered, concurrency=4)
@@ -81,9 +87,11 @@ async def fetch_content(feeds):
                 feed.tags = article.keywords
                 feed.summary = article.summary
                 await rss_with_content.send(value=feed)
-
+            logger.info(f"Fetched Content for Article {feed.link}")
         except newspaper.article.ArticleException:
-            logging.warn(f"Could not fetch content from {link}")
+            logger.warn(f"ArticleException: Could not fetch content from {link}")
+        except Exception:
+            logger.warn(traceback.format_exc())
 
 
 @app.agent(rss_without_content)
@@ -104,9 +112,11 @@ async def fill_content(feeds):
             feed.summary = article.summary
             # send to rss_w_content
             await rss_with_content.send(value=feed)
-
+            logger.info(f"Filled Content for Article {feed.link}")
         except newspaper.article.ArticleException:
-            logging.warn("Could not fill content")
+            logger.warn("ArticleException: Could not fill content")
+        except Exception:
+            logger.warn(traceback.format_exc())
 
 
 @app.agent(rss_with_content)
@@ -131,9 +141,9 @@ async def fill_summary_if_missing(feeds):
                 article.parse()
                 article.nlp()
                 feed.summary = article.summary
+            logger.info(f"Summarized Article {feed.link}")
         except Exception:
-            logging.warn(f"Could not summarize article: {link}")
-            traceback.print_exc()
+            logger.warn(traceback.format_exc())
         await full_rss.send(value=feed)
 
 
@@ -142,6 +152,11 @@ async def write_feed_to_mongo(feeds):
     # with client.start_session() as session:
     async for feed in feeds:
         try:
-            collection.insert_one(feed.asdict())
+            # convert datetime-string to datetime-object
+            published_date = datetime.datetime.strptime(feed.published,"%a, %d %b %Y %H:%M:%S %z")
+            feed.published = published_date
+            insert_date = datetime.datetime.utcnow()
+            collection.insert_one({**feed.asdict(), "insert_date" : insert_date})
+            logger.info(f"Inserted Article {feed.link}")
         except Exception:
-            traceback.print_exc()
+            logger.warn(traceback.format_exc())
