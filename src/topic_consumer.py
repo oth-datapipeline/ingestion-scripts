@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 from newspaper import Article
 from newspaper import Config
 from ingestion_logger import get_ingestion_logger
-logger = get_ingestion_logger("rss")
+
 
 import nltk
 nltk.download('punkt')
@@ -27,13 +27,15 @@ config.request_timeout = 5
 broker_host = os.environ["BROKER_HOST"] if "BROKER_HOST" in os.environ.keys() else "localhost:9092"
 app = faust.App('topic_consumer', broker=f'kafka://{broker_host}')
 
+logger, logHandler = get_ingestion_logger("rss")
+app.logger.addHandler(logHandler)
+
 # define topics
 rss = app.topic('rss', value_type=RssFeed)
 rss_filtered = app.topic('rss_filtered', value_type=RssFeed)
 rss_with_content = app.topic('rss_with_content', value_type=RssFeed)
 rss_without_content = app.topic('rss_without_content', value_type=RssFeed)
 full_rss = app.topic("full_rss", value_type=RssFeed)
-
 # define mongo db client
 user = os.environ["MONGO_INITDB_ROOT_USERNAME"]
 pw = os.environ["MONGO_INITDB_ROOT_PASSWORD"]
@@ -62,7 +64,7 @@ def set_links():
 	links = fetch_links()
 
 @app.agent(rss)
-async def remove_old_articles(feeds):
+async def remove_old_articles(feeds, concurrency=4):
     async for feed in feeds:
         if feed.link not in links:
             await rss_filtered.send(value=feed)
@@ -94,15 +96,15 @@ async def fetch_content(feeds):
             logger.warn(traceback.format_exc())
 
 
-@app.agent(rss_without_content)
+@app.agent(rss_without_content, concurrency=4)
 async def fill_content(feeds):
     async for feed in feeds:
         try:
             # send to rss_wo_content
             soup = BeautifulSoup(feed.content, features="html.parser")
             # remove all script and style elements
-            for script in soup(["script", "style", "a", "img"]):
-                script.extract()
+            map(lambda script: script.extract(), soup(["script", "style", "a", "img"]))
+
             text = soup.get_text()
             feed.content = text
             article = Article("")
@@ -119,7 +121,7 @@ async def fill_content(feeds):
             logger.warn(traceback.format_exc())
 
 
-@app.agent(rss_with_content)
+@app.agent(rss_with_content, concurrency=4)
 async def fill_summary_if_missing(feeds):
     async for feed in feeds:
         try:
@@ -130,8 +132,7 @@ async def fill_summary_if_missing(feeds):
                 soup = BeautifulSoup(feed.summary, features="html.parser")
 
                 # remove all script and style elements
-                for script in soup(["script", "style", "a", "img"]):
-                    script.extract()
+                map(lambda script: script.extract(), soup(["script", "style", "a", "img"]))
 
                 text = soup.get_text()
                 feed.summary = text
@@ -147,15 +148,20 @@ async def fill_summary_if_missing(feeds):
         await full_rss.send(value=feed)
 
 
-@app.agent(full_rss, concurrency=4)
+@app.agent(full_rss, concurrency=1)
 async def write_feed_to_mongo(feeds):
     # with client.start_session() as session:
     async for feed in feeds:
         try:
             # convert datetime-string to datetime-object
-            published_date = datetime.datetime.strptime(feed.published,"%a, %d %b %Y %H:%M:%S %z")
-            feed.published = published_date
-            insert_date = datetime.datetime.utcnow()
+            if feed.published_parsed:
+                feed.published = datetime.datetime(*feed.published_parsed[:-2])
+            elif feed.published:
+                timezone_string = feed.published.split(" ")[-1]
+                timezone_char = "%z" if any(c.isdigit() for c in timezone_string) else "%Z"
+                published_date = datetime.datetime.strptime(feed.published, f"%a, %d %b %Y %H:%M:%S {timezone_char}")
+                feed.published = published_date
+            insert_date = datetime.datetime.now()
             collection.insert_one({**feed.asdict(), "insert_date" : insert_date})
             logger.info(f"Inserted Article {feed.link}")
         except Exception:
