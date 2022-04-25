@@ -43,4 +43,4 @@ Before executing docker run, make sure the `/consumers/logs` folder exists withi
 
 
 Finally, run the `ingestion_image` you previously built, and pass various variables to the container:
-`docker run --network=docker_kafka --name=pipeline --mount source=./consumers/logs,target=/consumers/logs -e MONGO_INITDB_ROOT_USERNAME=<username> -e MONGO_INITDB_ROOT_PASSWORD=<password> -e BROKER_HOST="broker:29092" -e MONGO_HOST="mongo" ingestion_image`
+`docker run -d --network=docker_kafka --name=pipeline --mount type=bind,source="$(pwd)"/consumers/logs,target=/consumers/logs -e MONGO_INITDB_ROOT_USERNAME=<username> -e MONGO_INITDB_ROOT_PASSWORD=<password> -e BROKER_HOST="broker:29092" -e MONGO_HOST="mongo" ingestion_image`
