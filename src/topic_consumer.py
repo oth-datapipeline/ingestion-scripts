@@ -125,7 +125,6 @@ async def fill_content(feeds):
 async def fill_summary_if_missing(feeds):
     async for feed in feeds:
         try:
-            link = feed.link
             article = Article("")
             # clean existing summary from tags
             if (feed.summary):
