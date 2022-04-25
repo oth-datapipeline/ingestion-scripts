@@ -16,10 +16,10 @@ def get_ingestion_logger(data_source):
     logger = logging.getLogger(f'ingestion_logger_{data_source}')
 
     # Cut log file when it reaches 1MB in size, keep 2 Backups
-    logHandler = handlers.RotatingFileHandler(log_complete_path, maxBytes=1000000, backupCount=2)
-    logHandler.setLevel(logging.INFO)
+    log_handler = handlers.RotatingFileHandler(log_complete_path, maxBytes=1000000, backupCount=2)
+    log_handler.setLevel(logging.INFO)
     formatter = logging.Formatter(fmt='%(asctime)s | LEVEL: %(levelname)s | %(message)s', datefmt='%Y-%m-%d,%H:%M:%S')
-    logHandler.setFormatter(formatter)
-    logger.addHandler(logHandler)
+    log_handler.setFormatter(formatter)
+    logger.addHandler(log_handler)
     
-    return logger, logHandler
+    return logger, log_handler

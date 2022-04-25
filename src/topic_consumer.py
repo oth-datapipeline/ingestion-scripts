@@ -27,8 +27,8 @@ config.request_timeout = 5
 broker_host = os.environ["BROKER_HOST"] if "BROKER_HOST" in os.environ.keys() else "localhost:9092"
 app = faust.App('topic_consumer', broker=f'kafka://{broker_host}')
 
-logger, logHandler = get_ingestion_logger("rss")
-app.logger.addHandler(logHandler)
+logger, log_handler = get_ingestion_logger("rss")
+app.logger.addHandler(log_handler)
 
 # define topics
 rss = app.topic('rss', value_type=RssFeed)
