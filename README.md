@@ -28,7 +28,7 @@ Afterwards, install all requirements:
 
 Navigate to the src-Folder and type:
 
-`python -m faust -A topic_consumer --debug worker -l info`
+`python -m faust -A rss_consumer --debug worker -l info`
 
 (Don't forget to activate your venv beforehand)
 

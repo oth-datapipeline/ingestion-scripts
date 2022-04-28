@@ -14,3 +14,27 @@ class RssFeed(Record, serializer='json'):
     comments: str = None
     content: list = None
     source: dict = None
+
+class TwitterTrend(Record, serializer='json'):
+    pass
+
+class Tweet(Record, serializer="json"):
+    tweet_id : str
+    text : str
+    created_at : str
+    metrics : dict
+    author : dict
+    place : str = None
+    trend : str
+
+class RedditPost(Record, serializer='json'):
+    id: str
+    title: str
+    author: dict
+    created: str
+    score: int
+    upvote_ratio: float
+    reddit: dict
+    domain: str = None
+    url: str = None
+    comments: list = None
