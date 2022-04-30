@@ -24,8 +24,9 @@ class Tweet(Record, serializer="json"):
     created_at : str
     metrics : dict
     author : dict
-    place : str = None
     trend : str
+    place : str = None
+    keywords : list = None
 
 class RedditPost(Record, serializer='json'):
     id: str
@@ -38,3 +39,4 @@ class RedditPost(Record, serializer='json'):
     domain: str = None
     url: str = None
     comments: list = None
+    keywords : list = None
