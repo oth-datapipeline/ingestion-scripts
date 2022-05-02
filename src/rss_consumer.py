@@ -9,7 +9,6 @@ from records import RssFeed
 from pymongo import MongoClient
 from bs4 import BeautifulSoup
 from newspaper import Article
-from newspaper import Config
 from ingestion_logger import get_ingestion_logger
 
 
@@ -57,18 +56,21 @@ collection.create_index([('link', pymongo.ASCENDING)], name='link_index', unique
 def fetch_links():
     return list(map(lambda link: link['link'], list(collection.find({}, {'link': 1, '_id': 0}))))
 
+
 links = fetch_links()
+
 
 @app.timer(interval=36000.0)
 def set_links():
-	links = fetch_links()
+    links = fetch_links()  # noqa: F841
+
 
 @app.agent(rss)
 async def remove_old_articles(feeds, concurrency=4):
     async for feed in feeds:
         if feed.link not in links:
             await rss_filtered.send(value=feed)
-        else: 
+        else:
             logger.info(f"Discared Article {feed.link} as Duplicate")
 
 
@@ -161,7 +163,7 @@ async def write_feed_to_mongo(feeds):
                 published_date = datetime.datetime.strptime(feed.published, f"%a, %d %b %Y %H:%M:%S {timezone_char}")
                 feed.published = published_date
             insert_date = datetime.datetime.now()
-            collection.insert_one({**feed.asdict(), "insert_date" : insert_date})
+            collection.insert_one({**feed.asdict(), "insert_date": insert_date})
             logger.info(f"Inserted Article {feed.link}")
         except Exception:
             logger.warn(traceback.format_exc())

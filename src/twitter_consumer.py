@@ -1,3 +1,8 @@
+from records import Tweet
+from ingestion_logger import get_ingestion_logger
+from rake_nltk import Rake
+from pymongo import MongoClient
+from nltk.corpus import stopwords  # noqa: F401
 import datetime
 import emoji
 import faust
@@ -7,13 +12,7 @@ import traceback
 
 import nltk
 nltk.download('stopwords')
-from nltk.corpus import stopwords
 
-from pymongo import MongoClient
-from rake_nltk import Rake
-
-from ingestion_logger import get_ingestion_logger
-from records import Tweet, TweetsDict
 
 # define faust app
 broker_host = os.environ["BROKER_HOST"] if "BROKER_HOST" in os.environ.keys() else "localhost:9092"
@@ -47,6 +46,7 @@ collection.create_index([('tweet_id', pymongo.ASCENDING)], name='tweet_index', u
 # set up RAKE for Keyword Extraction
 r = Rake()
 
+
 @app.agent(twitter)
 async def demojify_tweet(tweets, concurrency=4):
     async for tweet in tweets:
@@ -56,6 +56,7 @@ async def demojify_tweet(tweets, concurrency=4):
             await tweets_without_emojis.send(value=tweet)
         except Exception:
             logger.warn(traceback.format_exc())
+
 
 @app.agent(tweets_without_emojis)
 async def tag_tweet(tweets, concurrency=4):
@@ -76,7 +77,7 @@ async def insert_tweet(tweets, concurrency=1):
         try:
             tweet.created_at = datetime.datetime.strptime(tweet.created_at, "%Y-%m-%d %H:%M:%S%z")
             insert_date = datetime.datetime.now()
-            collection.insert_one({**tweet.asdict(), "insert_date" : insert_date})
+            collection.insert_one({**tweet.asdict(), "insert_date": insert_date})
             logger.info(f"Inserted Tweet {tweet.tweet_id} into MongoDB")
         except Exception:
             logger.warn(traceback.format_exc())
