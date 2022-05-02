@@ -1,0 +1,60 @@
+name: Sonar Scan & Quality Checks on PR
+
+on:
+  workflow_dispatch:   # Allows for manually triggering pipeline
+  push:
+    branches:
+      - master
+      - develop
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  sonarcloud:
+    name: SonarCloud
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - name: Run SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        with:
+          args: >
+            -Dsonar.organization=oth-datapipeline
+            -Dsonar.projectKey=oth-datapipeline_ingestion-scripts
+            -Dsonar.sources=.
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.python.version=3.7,3.8,3.9,3.10
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  dockerBuild:
+    name: Build docker image
+    needs: [sonarcloud]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master'  # Only build docker image on push to master/develop
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Log in to the Container registry
+        uses: docker/login-action@v1
+        with:
+          registry: '${{ env.REGISTRY }}'
+          username: '${{ github.actor }}'
+          password: '${{ secrets.GITHUB_TOKEN }}'
+      - name: Set tag LATEST  # Set tag based on branch
+        if: github.ref == 'refs/heads/master'
+        run: echo 'TAG=latest' >> $GITHUB_ENV
+      - name: Set tag DEVELOP
+        if: github.ref == 'refs/heads/develop'
+        run: echo 'TAG=develop' >> $GITHUB_ENV
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          tags: >-
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}

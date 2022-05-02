@@ -4,12 +4,14 @@ repos:
     hooks:
     -   id: check-yaml
     -   id: end-of-file-fixer
+        exclude: requirements.txt
     -   id: trailing-whitespace
+        exclude: requirements.txt
 -   repo: https://github.com/pre-commit/mirrors-autopep8
     rev: v1.6.0
     hooks:
     -   id: autopep8
-        args: [--global-config=.flake8, --in-place, --max-line-length=120, --aggressive]
+        args: [--global-config=.flake8, --in-place, --max-line-length=160, --aggressive]
 -   repo: https://gitlab.com/pycqa/flake8
     rev: 4.0.1
     hooks:
