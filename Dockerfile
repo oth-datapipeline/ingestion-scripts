@@ -24,5 +24,5 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY src/ ./src/
 COPY test/ ./test/
 
-# (3) change into src - ready to go.
-CMD [ "/bin/sh" , "-c" , "cd src/  && python3 -m faust -A topic_consumer worker -l info" ]
+# (3) start the Faust workers
+CMD ./start_faust_instances
