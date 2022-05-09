@@ -1,17 +1,15 @@
 from records import Tweet
 from ingestion_logger import get_ingestion_logger
-from rake_nltk import Rake
+
 from pymongo import MongoClient
-from nltk.corpus import stopwords  # noqa: F401
 import datetime
 import emoji
 import faust
 import os
 import pymongo
+import re
 import traceback
 
-import nltk
-nltk.download('stopwords')
 
 
 # define faust app
@@ -43,8 +41,6 @@ db = client['data']
 collection = db['twitter.tweets']
 collection.create_index([('tweet_id', pymongo.ASCENDING)], name='tweet_index', unique=True)
 
-# set up RAKE for Keyword Extraction
-r = Rake()
 
 
 @app.agent(twitter)
@@ -62,10 +58,11 @@ async def demojify_tweet(tweets, concurrency=4):
 async def tag_tweet(tweets, concurrency=4):
     async for tweet in tweets:
         try:
-            r.extract_keywords_from_text(tweet.text)
-            unfiltered_kws = r.get_ranked_phrases_with_scores()
-            tweet.keywords = [pair[1] for pair in filter(lambda tup: tup[0] >= 3.0, unfiltered_kws)]
-            logger.info(f"Extracted Keywords for Tweet {tweet.tweet_id}")
+            #add hashtags
+            pattern = r"#(\w+)"
+            hashtags = re.findall(pattern, tweet.text)
+            tweet.hashtags = hashtags
+            logger.info(f"Extracted Hashtags for Tweet {tweet.tweet_id}")
             await final_tweets.send(value=tweet)
         except Exception:
             logger.warn(traceback.format_exc())
