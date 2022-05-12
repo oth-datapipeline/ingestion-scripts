@@ -13,8 +13,6 @@ RUN pip install -r requirements.txt
 FROM python:3.9-slim-bullseye AS runner
 
 ENV VIRTUAL_ENV=/opt/venv
-ARG scraper_type
-ARG base_url
 
 WORKDIR /ingestion_scripts/
 
@@ -24,5 +22,5 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY src/ ./src/
 COPY test/ ./test/
 
-# (3) start the Faust workers
-CMD ./start_faust_instances
+# (3) check for running vevn
+RUN which python
