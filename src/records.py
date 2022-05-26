@@ -29,6 +29,7 @@ class Tweet(Record, serializer="json"):
     trend: str
     place: str = None
     hashtags: list = None
+    sentiment: dict = None
 
 
 class RedditPost(Record, serializer='json'):
@@ -43,3 +44,4 @@ class RedditPost(Record, serializer='json'):
     url: str = None
     comments: list = None
     keywords: list = None
+    sentiment: dict = None
