@@ -9,6 +9,8 @@ from pymongo import MongoClient
 from nltk.corpus import stopwords
 from records import RedditPost
 
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+
 # imports for tagging reddit comments
 import nltk
 from ingestion_logger import get_ingestion_logger
@@ -31,6 +33,7 @@ app.logger.addHandler(log_handler)
 # define topics
 reddit = app.topic('reddit', value_type=RedditPost)
 posts_without_emojis = app.topic('post_no_emoji', value_type=RedditPost)
+posts_with_sentiment = app.topic('post_sentiment_analysis', value_type=RedditPost)
 final_post = app.topic('final_post', value_type=RedditPost)
 
 # define mongo db client
@@ -74,7 +77,51 @@ def structure_keywords(keywords: "list[tuple[tuple, int]]"):
     return list(dict.fromkeys(keywords_as_list))
 
 
+def analyze_sentiment(text: string):
+    analyzer = SentimentIntensityAnalyzer()
+    scores = analyzer.polarity_scores(text)
+    return {
+        'negative': scores['neg'],
+        'neutral': scores['neu'],
+        'positive': scores['pos'],
+        'compound': scores['compound']
+    }
+
+
 @app.agent(reddit)
+async def analyze_post_and_comment_sentiment(posts, concurrency=4):
+    # Sentiment analyzer taken from:
+    # Hutto, C.J. & Gilbert, E.E. (2014). VADER: A Parsimonious Rule-based Model for Sentiment Analysis of Social Media Text.
+    # Eighth International Conference on Weblogs and Social Media (ICWSM-14). Ann Arbor, MI, June 2014.
+    #
+    # FROM THE DOCS:
+    # The compound score is computed by summing the valence scores of each word in the lexicon,
+    # adjusted according to the rules, and then normalized to be between -1 (most extreme negative)
+    # and +1 (most extreme positive). This is the most useful metric if you want a single unidimensional measure
+    # of sentiment for a given sentence. Calling it a 'normalized, weighted composite score' is accurate.
+    #
+    # It is also useful for researchers who would like to set standardized thresholds for classifying sentences
+    # as either positive, neutral, or negative. Typical threshold values (used in the literature cited on this page) are:
+    # - positive sentiment: compound score >= 0.05
+    # - neutral sentiment: (compound score > -0.05) and (compound score < 0.05)
+    # - negative sentiment: compound score <= -0.05
+    #
+    # NOTE: The compound score is the one most commonly used for sentiment analysis by most researchers, including the authors.
+    async for post in posts:
+        try:
+            post.sentiment = analyze_sentiment(post.title)
+
+            comment_list = post.comments
+            for comment in comment_list:
+                comment["sentiment"] = analyze_sentiment(comment["text"])
+
+            logger.info(f"Ran sentiment analysis for Post {post.id}")
+            await posts_with_sentiment.send(value=post)
+        except Exception:
+            logger.warn(traceback.format_exc())
+
+
+@app.agent(posts_with_sentiment)
 async def demojify_post(posts, concurrency=4):
     async for post in posts:
         try:
